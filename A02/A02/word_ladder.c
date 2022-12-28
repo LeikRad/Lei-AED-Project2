@@ -8,16 +8,16 @@
 //
 // Do as much as you can
 //   1) MANDATORY: complete the hash table code
-//      *) hash_table_create | done ; need to test
-//      *) hash_table_grow | done ; need to test
-//      *) hash_table_free | done ; need to test
-//      *) find_word | done ; need to test
+//      *) hash_table_create | done
+//      *) hash_table_grow | done 
+//      *) hash_table_free | done 
+//      *) find_word | done 
 
 //      +) add code to get some statistical data about the hash table | not done
 
 //   2) HIGHLY RECOMMENDED: build the graph (including union-find data) -- use the similar_words function...
-//      *) find_representative | not done
-//      *) add_edge | kind of done missing union find representative | need to test
+//      *) find_representative | done
+//      *) add_edge | done
 
 //   3) RECOMMENDED: implement breadth-first search in the graph
 //      *) breadh_first_search
@@ -247,6 +247,13 @@ static void hash_table_free(hash_table_t *hash_table)
     node = hash_table->heads[i];
     while(node != NULL)
     {
+      adjacency_node_t *adjNode = node->head, *tempAdjNode;
+      while (adjNode != NULL)
+      {
+        tempAdjNode = adjNode->next;
+        free_adjacency_node(adjNode);
+        adjNode = tempAdjNode;
+      }    
       next_node = node->next;
       free_hash_table_node(node);
       node = next_node;
@@ -358,6 +365,7 @@ static void add_edge(hash_table_t *hash_table,hash_table_node_t *from,const char
     fprintf(stderr,"add_edge: out of memory\n");
     exit(1);
   }
+  
   linkfrom->vertex = to;
   linkfrom->next = from->head;
   from->head = linkfrom;
@@ -465,6 +473,10 @@ static void similar_words(hash_table_t *hash_table, hash_table_node_t *from)
 
 static int breadh_first_search(int maximum_number_of_vertices,hash_table_node_t **list_of_vertices,hash_table_node_t *origin,hash_table_node_t *goal)
 {
+  // [fromnode, emptyspace, emptyspace, ..., emptyspace]
+  //    r^        w^
+  // [fromnode, node1, node2,..., emptyspace , emptyspace]
+  //              r^                 w^
   int r = 0, w = 1;
   list_of_vertices[0] = origin;
   origin->previous = NULL;
@@ -472,20 +484,19 @@ static int breadh_first_search(int maximum_number_of_vertices,hash_table_node_t 
   int stop = 0;
   while (r != w)
   {
-    hash_table_node_t *node = list_of_vertices[r++]->head;
-
+    adjacency_node_t *node = list_of_vertices[r++]->head;
+    if (stop == 1)
+    {
+      break;
+    }
     while (node != NULL)
     {
-      if (stop == 1)
+      if (node->vertex->visited == 0)
       {
-        break;
-      }
-      if (node->visited == 0)
-      {
-        node->visited = 1;
-        node->previous = list_of_vertices[r-1];
-        list_of_vertices[w++] = node;
-        if (node == goal)
+        node->vertex->visited = 1;
+        node->vertex->previous = list_of_vertices[r-1];
+        list_of_vertices[w++] = node->vertex;
+        if (node->vertex == goal)
         {
           stop = 1;
           break;
@@ -493,6 +504,10 @@ static int breadh_first_search(int maximum_number_of_vertices,hash_table_node_t 
       }
       node = node->next;
     }
+  }
+  for (int i = 0; i < w; i++)
+  {
+    list_of_vertices[i]->visited = 0;
   }
   return w;
 }
@@ -505,26 +520,115 @@ static int breadh_first_search(int maximum_number_of_vertices,hash_table_node_t 
 
 static void list_connected_component(hash_table_t *hash_table,const char *word)
 {
-  //
-  // complete this
-  //
-}
+  hash_table_node_t *node, *rep;
+  int i, n, maximum_number_of_vertices;
+  hash_table_node_t **list_of_vertices;
+
+  node = find_word(hash_table,word,0);
+  
+  if(node == NULL)
+  {
+    printf("list_connected_component: word not found\n");
+    return;
+  }
+
+  rep = find_representative(node);
+  maximum_number_of_vertices = rep->number_of_vertices;
+  list_of_vertices = (hash_table_node_t **)malloc(maximum_number_of_vertices * sizeof(hash_table_node_t *));
+  
+  if(list_of_vertices == NULL)
+  {
+    fprintf(stderr,"list_connected_component: out of memory\n");
+    exit(1);
+  }
+  
+  n = breadh_first_search(maximum_number_of_vertices,list_of_vertices,node,NULL);
+  int count = 0;
+  for(i = 0;i < n;i++){
+    printf("%d: %s\n",count,list_of_vertices[i]->word);
+    count++;
+  }
+  free(list_of_vertices);
+} 
 
 
 //
 // compute the diameter of a connected component (optional)
 //
 
-static int largest_diameter;
-static hash_table_node_t **largest_diameter_example;
+static int largest_diameter, smallest_diameter, sum_of_diameters, number_of_components;
+static hash_table_node_t **largest_diameter_example, **smallest_diameter_example;
 
 static int connected_component_diameter(hash_table_node_t *node)
 {
-  int diameter;
+  int diameter = -1;
+  int i, n, maximum_number_of_vertices;
+  hash_table_node_t **list_of_vertices, **temp_list, **final_list;
+  
+  maximum_number_of_vertices = find_representative(node)->number_of_vertices;
+  list_of_vertices = (hash_table_node_t **)malloc(maximum_number_of_vertices * sizeof(hash_table_node_t *));
+  temp_list = (hash_table_node_t **)malloc(maximum_number_of_vertices * sizeof(hash_table_node_t *));
+  final_list = (hash_table_node_t **)malloc(maximum_number_of_vertices * sizeof(hash_table_node_t *));
 
-  //
-  // complete this
-  //
+  if(list_of_vertices == NULL || temp_list == NULL)
+  {
+    fprintf(stderr,"connected_component_diameter: out of memory\n");
+    exit(1);
+  }
+
+  n = breadh_first_search(maximum_number_of_vertices,list_of_vertices,node,NULL);
+  
+  for ( i = 0; i < n; i++)
+  {
+    for (int j = i+1; j < n; j++)
+    {
+      int temp = breadh_first_search(maximum_number_of_vertices,temp_list,list_of_vertices[i],list_of_vertices[j]);
+      int temp_diameter = 0;
+      hash_table_node_t *p = temp_list[temp-1];
+      
+      while (p != NULL)
+      {
+        temp_diameter++;
+        p = p->previous;
+      }
+      
+      if (temp_diameter > diameter)
+      {
+        diameter = temp_diameter;
+        final_list = temp_list;
+      }
+    }
+  }
+
+  if (diameter == -1)
+  {
+    printf("connected_component_diameter: diameter not found\n");
+    return -1;
+  }
+  
+  if (diameter > largest_diameter)
+  {
+    largest_diameter = diameter;
+    largest_diameter_example = temp_list;
+  }
+  if (diameter < smallest_diameter)
+  {
+    smallest_diameter = diameter;
+    smallest_diameter_example = temp_list;
+  }
+  sum_of_diameters += diameter;
+  number_of_components++;
+  hash_table_node_t *p = final_list[largest_diameter-1];
+  int count = 0;
+  while (p != NULL)
+  {
+    printf("%d: %s \n",count, p->word);
+    count++;
+    p = p->previous;
+  }
+  free(final_list);
+  free(temp_list);
+  free(list_of_vertices);  
   return diameter;
 }
 
@@ -551,22 +655,27 @@ static void path_finder(hash_table_t *hash_table,const char *from_word,const cha
     printf("The words are not in the same connected component, so there's no path between them.\n");
     return;
   }
+
   hash_table_node_t **list_of_vertices = malloc(sizeof(hash_table_node_t *) * fromRep->number_of_vertices);
+  
   if (list_of_vertices == NULL)
   {
     fprintf(stderr, "path_finder: malloc failed\n");
     exit(1);
   }
-  int goalIndex = breadh_first_search(fromRep->number_of_vertices, list_of_vertices, fromNode, toNode);
-  
-  hash_table_node_t *p = list_of_vertices[goalIndex];
+
+  int goalIndex = breadh_first_search(fromRep->number_of_vertices, list_of_vertices, toNode, fromNode);
+
+  hash_table_node_t *p = list_of_vertices[goalIndex-1];
   int count = 0;
   while (p != NULL)
   {
-    printf("%d: %s ",count, p->word);
+    printf("%d: %s \n",count, p->word);
+    count++;
     p = p->previous;
   }
   
+  free(list_of_vertices);
 }
 
 
@@ -577,9 +686,8 @@ static void path_finder(hash_table_t *hash_table,const char *from_word,const cha
 
 static void graph_info(hash_table_t *hash_table)
 {
-  //
-  // complete this
-  //
+  
+  return;
 }
 
 
@@ -635,7 +743,6 @@ int main(int argc,char **argv)
       similar_words(hash_table, node);
     }
   }
-  printf("testing\n");
   graph_info(hash_table);
 
   // ask what to do
