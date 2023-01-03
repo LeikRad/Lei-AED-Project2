@@ -690,7 +690,10 @@ static void graph_info(hash_table_t *hash_table)
   return;
 }
 
+static void hash_table_info(hash_table_t *hash_table)
+{
 
+}
 
 static void print_list(hash_table_t *hash_table){
   for (size_t i = 0; i < hash_table->hash_table_size; i++)
