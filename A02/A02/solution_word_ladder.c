@@ -722,8 +722,8 @@ static void graph_info(hash_table_t *hash_table)
   }
   //create smaller array to hold the representative nodes
   hash_table_node_t **representatives2 = malloc(sizeof(hash_table_node_t *) * numRepresentatives);
-  int ComponentSizeArray2[numRepresentatives];
-  int diameterArray2[numRepresentatives];
+  int *ComponentSizeArray2 = malloc(sizeof(int) * numRepresentatives);
+  int *diameterArray2 = malloc(sizeof(int) * numRepresentatives);
   for (int i = 0; i < numRepresentatives; i++)
   {
     representatives2[i] = representatives[i];
@@ -775,6 +775,8 @@ static void graph_info(hash_table_t *hash_table)
   fprintf(fp, "]\n");
   fprintf(fp, "}\n");
   free(representatives2);
+  free(ComponentSizeArray2);
+  free(diameterArray2);
   fclose(fp);
   return;
 }
@@ -791,12 +793,13 @@ static void hash_table_info(hash_table_t *hash_table)
   fprintf(fp, "\t\"load_factor\": %f,\n", hash_table->number_of_entries/(float)hash_table->hash_table_size);
 
   // find the shortest chain, longest chain, and average chain
-  int shortest_chain = 1000000;
+  int shortest_chain = hash_table->number_of_entries+1;
   int longest_chain = 0;
   int average_chain = 0;
-  int count = 0;
+  long int count = 0;
   int chainArray[hash_table->hash_table_size];
-  for (uint i = 0; i < hash_table->hash_table_size; i++)
+  
+  for (long int i = 0; i < hash_table->hash_table_size; i++)
   {
     if (hash_table->heads[i] != NULL)
     {
@@ -808,14 +811,17 @@ static void hash_table_info(hash_table_t *hash_table)
         p = p->next;
       }
       chainArray[i] = chain_length;
+      
       if (chain_length < shortest_chain)
       {
         shortest_chain = chain_length;
       }
+      
       if (chain_length > longest_chain)
       {
         longest_chain = chain_length;
       }
+      
       average_chain += chain_length;
       count++;
     } else {
@@ -827,10 +833,19 @@ static void hash_table_info(hash_table_t *hash_table)
   fprintf(fp, "\t\"longest_chain\": %d,\n", longest_chain);
   fprintf(fp, "\t\"average_chain\": %f,\n", avg_chain);
   fprintf(fp, "\t\"chains\": [");
+
+  
   // create new array to store the chain lengths with non-zero chains
-  int chainArray2[count];
+  int *chainArray2 = malloc(sizeof(int) * count);
+
+  if (chainArray2 == NULL)
+  {
+    printf("memalloc failed\n");
+    exit(1);
+  }
+  
   int j = 0;
-  for (uint i = 0; i < hash_table->hash_table_size; i++)
+  for (long int i = 0; i < hash_table->hash_table_size; i++)
   {
     if (chainArray[i] != 0)
     {
@@ -852,6 +867,7 @@ static void hash_table_info(hash_table_t *hash_table)
   //close json format
   fprintf(fp, "}\n");
   fclose(fp);
+  free(chainArray2);
   return;
 }
 
@@ -888,18 +904,18 @@ int main(int argc,char **argv)
   // initialize hash table
   hash_table = hash_table_create();
   // read words
-  fp = fopen((argc < 2) ? "wordlist-four-letters.txt" : argv[1],"rb");
+  fp = fopen((argc < 2) ? "wordlist-big-latest.txt" : argv[1],"rb");
   if(fp == NULL)
   {
     fprintf(stderr,"main: unable to open the words file\n");
     exit(1);
   }
-  
-    while(fscanf(fp,"%99s",word) == 1)
-      (void)find_word(hash_table,word,1);
-    fclose(fp);
+  while(fscanf(fp,"%99s",word) == 1){
+    (void)find_word(hash_table,word,1);
+  }
+  fclose(fp);
+  printf("Finished find_word\n");
     // find all similar words
-
   for(i = 0u;i < hash_table->hash_table_size;i++)
   { 
     for(node = hash_table->heads[i];node != NULL;node = node->next)
@@ -907,8 +923,12 @@ int main(int argc,char **argv)
       similar_words(hash_table, node);
     }
   }
-  graph_info(hash_table);
+  printf("Finished Sim words\n");
   hash_table_info(hash_table);
+  printf("Finished hash info\n");
+  graph_info(hash_table);
+  printf("finished graph info\n");
+
   // ask what to do
   for(;;)
   {
