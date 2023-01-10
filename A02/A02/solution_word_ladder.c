@@ -46,7 +46,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <unistd.h>
 
 #define _max_word_size_  32
 
@@ -654,8 +654,12 @@ static void path_finder(hash_table_t *hash_table,const char *from_word,const cha
 //
 
 
-static void graph_info(hash_table_t *hash_table)
+static void graph_info(hash_table_t *hash_table, char *FileName)
 {
+  
+  char JsonName[0xFF] = "\0";
+  strcat(JsonName, FileName);
+  strcat(JsonName, "_graph_info.json");
   //create node array to keep track of representative nodes
   hash_table_node_t **representatives = malloc(sizeof(hash_table_node_t *) * hash_table->number_of_entries);
   int numRepresentatives = 0; // d
@@ -740,7 +744,7 @@ static void graph_info(hash_table_t *hash_table)
 
   // create a file pointer to write to
 
-  FILE *fp = fopen("graph_info.json", "w");
+  FILE *fp = fopen(JsonName, "w");
 
   // write the graph information to the file using json format
   fprintf(fp, "{\n");
@@ -781,10 +785,13 @@ static void graph_info(hash_table_t *hash_table)
   return;
 }
 
-static void hash_table_info(hash_table_t *hash_table)
+static void hash_table_info(hash_table_t *hash_table, char *FileName)
 {
   // create a file pointer to write to
-  FILE *fp = fopen("hash_table_info.json", "w");
+  char JsonName[0xFFF] = "\0";
+  strcat(JsonName, FileName);
+  strcat(JsonName, "_hash_table_info.json");
+  FILE *fp = fopen(JsonName, "w");
 
   // write the hashtable size to the file using json format
   fprintf(fp, "{\n");
@@ -895,10 +902,17 @@ static void print_list(hash_table_t *hash_table){
 int main(int argc,char **argv)
 {
   char word[100],from[100],to[100];
+  char filename[0xFFF];
+  int MAXSIZE = 0xFFF;
+  char proclnk[0xFFF];
+  int fno;
+  ssize_t r;
   hash_table_t *hash_table;
   hash_table_node_t *node;
+  
   unsigned int i;
   int command;
+  
   FILE *fp;
   printf("Word Ladder Solver\n");
   // initialize hash table
@@ -910,11 +924,27 @@ int main(int argc,char **argv)
     fprintf(stderr,"main: unable to open the words file\n");
     exit(1);
   }
+
+  // File Pointer and string manipulation
+  fno = fileno(fp);
+  sprintf(proclnk, "/proc/self/fd/%d", fno);
+  r = readlink(proclnk, filename, MAXSIZE);
+  filename[r] = '\0';
+
+  char *token = strtok(filename, "/");
+  char *tokenlast;
+  while( token != NULL ) {
+      tokenlast = token;
+      token = strtok(NULL, "/");
+  }
+  char *ActualFilename = strtok(tokenlast, ".");
+  // end of string manipulation
+
   while(fscanf(fp,"%99s",word) == 1){
     (void)find_word(hash_table,word,1);
   }
   fclose(fp);
-  printf("Finished find_word\n");
+
     // find all similar words
   for(i = 0u;i < hash_table->hash_table_size;i++)
   { 
@@ -923,11 +953,8 @@ int main(int argc,char **argv)
       similar_words(hash_table, node);
     }
   }
-  printf("Finished Sim words\n");
-  hash_table_info(hash_table);
-  printf("Finished hash info\n");
-  graph_info(hash_table);
-  printf("finished graph info\n");
+  hash_table_info(hash_table, ActualFilename);
+  graph_info(hash_table, ActualFilename);
 
   // ask what to do
   for(;;)
